@@ -53,7 +53,8 @@ export class ExportManager {
     
     // Recent Submissions
     doc.setFontSize(16)
-    doc.text('Recent Submissions', 20, doc.lastAutoTable.finalY + 20)
+    const lastTable = (doc as any).lastAutoTable
+    doc.text('Recent Submissions', 20, lastTable.finalY + 20)
     
     const submissionData = analytics.submissions.slice(0, 10).map((submission: any) => [
       `Assignment ${submission.courseWorkId.slice(-3)}`,
@@ -64,7 +65,7 @@ export class ExportManager {
     ])
     
     doc.autoTable({
-      startY: doc.lastAutoTable.finalY + 30,
+      startY: lastTable.finalY + 30,
       head: [['Assignment', 'Status', 'Late', 'Grade', 'Date']],
       body: submissionData,
       theme: 'grid'
@@ -111,7 +112,8 @@ export class ExportManager {
     
     // Student Performance Table
     doc.setFontSize(16)
-    doc.text('Student Performance', 20, doc.lastAutoTable.finalY + 20)
+    const lastTable2 = (doc as any).lastAutoTable
+    doc.text('Student Performance', 20, lastTable2.finalY + 20)
     
     const studentData = exportData.students.map(student => {
       const studentSubmissions = exportData.submissions.filter(s => s.userId === student.userId)
@@ -131,7 +133,7 @@ export class ExportManager {
     })
     
     doc.autoTable({
-      startY: doc.lastAutoTable.finalY + 30,
+      startY: lastTable2.finalY + 30,
       head: [['Student', 'Completed', 'Late', 'Avg Grade', 'Completion %']],
       body: studentData,
       theme: 'grid'
