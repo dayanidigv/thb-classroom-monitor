@@ -61,18 +61,6 @@ export interface StudentAnalytics {
   lateSubmissions: number
   trend: 'improving' | 'declining' | 'stable'
   riskLevel: 'low' | 'medium' | 'high'
-  predictions: {
-    finalGrade: number
-    completionProbability: number
-    likelyFinalGrade: number
-    riskOfFailure: number
-    nextAssignmentSuccess: number
-    recommendedInterventions: string[]
-    classAverageProjection: number
-    interventionNeeded: boolean
-    expectedCompletionRate: number
-  }
-  recommendations: string[]
   weeklyProgress: { week: string; grade: number; completion: number }[]
   recentSubmissions: SubmissionData[]
 }
@@ -92,19 +80,7 @@ export interface ClassAnalytics {
     performanceDistribution: { range: string; count: number; percentage: number }[]
     submissionPatterns: { day: string; submissions: number; onTime: number; late: number }[]
   }
-  recommendations: string[]
   weeklyProgress: { week: string; averageGrade: number; completionRate: number }[]
-  predictions?: {
-    finalGrade: number
-    completionProbability: number
-    likelyFinalGrade: number
-    riskOfFailure: number
-    nextAssignmentSuccess: number
-    recommendedInterventions: string[]
-    classAverageProjection: number
-    interventionNeeded: boolean
-    expectedCompletionRate: number
-  }
   overallPerformance?: {
     grade: number
     completion: number
@@ -117,7 +93,6 @@ export interface ClassAnalytics {
   insights?: {
     topPerformers: StudentAnalytics[]
     strugglingStudents: StudentAnalytics[]
-    recommendations: string[]
     atRiskStudents: StudentAnalytics[]
     improvingStudents: StudentAnalytics[]
   }
@@ -159,23 +134,7 @@ export class AnalyticsEngine {
     const riskLevel: 'low' | 'medium' | 'high' = averageGrade >= 80 && completionRate >= 90 ? 'low' : 
                                                  averageGrade >= 60 && completionRate >= 70 ? 'medium' : 'high'
 
-    // Simplified predictions
-    const predictions = {
-      finalGrade: Math.round(averageGrade),
-      completionProbability: Math.round(completionRate),
-      likelyFinalGrade: Math.round(averageGrade),
-      riskOfFailure: averageGrade < 60 ? 75 : averageGrade < 70 ? 50 : 25,
-      nextAssignmentSuccess: completionRate > 80 ? 85 : 70,
-      recommendedInterventions: riskLevel === 'high' ? ['Schedule meeting', 'Provide additional resources'] : ['Continue monitoring'],
-      classAverageProjection: Math.round(averageGrade),
-      interventionNeeded: riskLevel === 'high',
-      expectedCompletionRate: Math.round(completionRate)
-    }
 
-    // Simplified recommendations
-    const recommendations = riskLevel === 'high' ? 
-      ['Schedule individual meeting', 'Review recent assignments', 'Provide additional support'] :
-      ['Continue current approach', 'Monitor progress']
 
     return {
       studentId: student.userId || student.id,
@@ -188,8 +147,7 @@ export class AnalyticsEngine {
       lateSubmissions: lateSubmissions.length,
       trend,
       riskLevel,
-      predictions,
-      recommendations,
+
       weeklyProgress: [],
       recentSubmissions: studentSubmissions.slice(0, 5)
     }
@@ -239,10 +197,7 @@ export class AnalyticsEngine {
     const gradesTrend: 'improving' | 'declining' | 'stable' = averageGrade >= 80 ? 'improving' : averageGrade < 60 ? 'declining' : 'stable'
     const completionTrend: 'improving' | 'declining' | 'stable' = averageCompletionRate >= 80 ? 'improving' : averageCompletionRate < 60 ? 'declining' : 'stable'
     
-    // Generate recommendations based on data
-    const recommendations = studentsAtRisk > totalStudents * 0.3 ? 
-      ['Implement class-wide intervention strategies', 'Review curriculum pacing', 'Schedule individual student meetings'] :
-      ['Continue current teaching approach', 'Monitor student progress', 'Maintain engagement strategies']
+
     
     // Simplified weekly progress
     const weeklyProgress: any[] = []
@@ -285,19 +240,7 @@ export class AnalyticsEngine {
         performanceDistribution,
         submissionPatterns
       },
-      recommendations,
       weeklyProgress,
-      predictions: {
-        finalGrade: Math.round(averageGrade * 100) / 100,
-        completionProbability: Math.round(averageCompletionRate * 100) / 100,
-        likelyFinalGrade: Math.round(averageGrade * 100) / 100,
-        riskOfFailure: averageGrade < 60 ? 75 : averageGrade < 70 ? 50 : 25,
-        nextAssignmentSuccess: averageCompletionRate > 80 ? 85 : 70,
-        recommendedInterventions: studentsAtRisk > totalStudents * 0.3 ? ['Class-wide intervention', 'Review curriculum'] : ['Continue monitoring'],
-        classAverageProjection: Math.round(averageGrade * 100) / 100,
-        interventionNeeded: studentsAtRisk > totalStudents * 0.3,
-        expectedCompletionRate: Math.round(averageCompletionRate * 100) / 100
-      },
       overallPerformance: {
         grade: Math.round(averageGrade * 100) / 100,
         completion: Math.round(averageCompletionRate * 100) / 100,
@@ -310,7 +253,6 @@ export class AnalyticsEngine {
       insights: {
         topPerformers,
         strugglingStudents,
-        recommendations,
         atRiskStudents: studentAnalytics.filter(s => s.riskLevel === 'high'),
         improvingStudents: studentAnalytics.filter(s => s.trend === 'improving')
       }
@@ -362,62 +304,7 @@ export class AnalyticsEngine {
     return 'low'
   }
 
-  private generatePredictions(grade: number, completionRate: number, trend: string): { finalGrade: number; completionProbability: number; likelyFinalGrade: number; riskOfFailure: number; nextAssignmentSuccess: number; recommendedInterventions: string[]; classAverageProjection: number; interventionNeeded: boolean; expectedCompletionRate: number } {
-    let finalGrade = grade
-    let completionProbability = completionRate
 
-    // Adjust based on trend
-    if (trend === 'improving') {
-      finalGrade = Math.min(100, grade + 5)
-      completionProbability = Math.min(100, completionRate + 10)
-    } else if (trend === 'declining') {
-      finalGrade = Math.max(0, grade - 5)
-      completionProbability = Math.max(0, completionRate - 10)
-    }
-
-    return {
-      finalGrade: Math.round(finalGrade * 100) / 100,
-      completionProbability: Math.round(completionProbability * 100) / 100,
-      likelyFinalGrade: Math.round(finalGrade * 100) / 100,
-      riskOfFailure: grade < 60 ? 75 : grade < 70 ? 50 : 25,
-      nextAssignmentSuccess: completionRate > 80 ? 85 : 70,
-      recommendedInterventions: grade < 60 ? ['Immediate tutoring', 'Study plan'] : ['Continue monitoring'],
-      classAverageProjection: Math.round(finalGrade * 100) / 100,
-      interventionNeeded: grade < 60 || completionRate < 50,
-      expectedCompletionRate: Math.round(completionProbability * 100) / 100
-    }
-  }
-
-  private generateRecommendations(riskLevel: string, grade: number, completionRate: number, lateSubmissions: number): string[] {
-    const recommendations: string[] = []
-
-    if (riskLevel === 'high') {
-      recommendations.push('Schedule immediate intervention meeting')
-      recommendations.push('Provide additional tutoring resources')
-    }
-
-    if (grade < 70) {
-      recommendations.push('Review assignment complexity and provide more scaffolding')
-      recommendations.push('Implement additional support resources and review sessions')
-    }
-
-    if (completionRate < 70) {
-      recommendations.push('Check in with student about assignment understanding')
-      recommendations.push('Provide assignment reminders and deadline management support')
-    }
-
-    if (lateSubmissions > 2) {
-      recommendations.push('Discuss time management strategies')
-      recommendations.push('Consider flexible deadline arrangements if appropriate')
-    }
-
-    if (recommendations.length === 0) {
-      recommendations.push('Continue current engagement strategies')
-      recommendations.push('Consider advanced enrichment opportunities')
-    }
-
-    return recommendations
-  }
 
   private calculateWeeklyProgressFromSubmissions(submissions: SubmissionData[]): { week: string; grade: number; completion: number }[] {
     const weeks: { week: string; grade: number; completion: number }[] = []
@@ -474,18 +361,7 @@ export class AnalyticsEngine {
       lateSubmissions: 0,
       trend: 'stable',
       riskLevel: 'high',
-      predictions: {
-        finalGrade: 0,
-        completionProbability: 0,
-        likelyFinalGrade: 0,
-        riskOfFailure: 100,
-        nextAssignmentSuccess: 0,
-        recommendedInterventions: ['Student data not available', 'Please verify student enrollment'],
-        classAverageProjection: 0,
-        interventionNeeded: true,
-        expectedCompletionRate: 0
-      },
-      recommendations: ['Student data not available', 'Please verify student enrollment'],
+
       weeklyProgress: [],
       recentSubmissions: []
     }

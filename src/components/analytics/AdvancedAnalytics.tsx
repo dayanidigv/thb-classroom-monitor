@@ -224,15 +224,15 @@ export default function AdvancedAnalytics({
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Predicted Class Average</p>
-              <div className="text-2xl font-bold text-gray-900">{analytics.predictions?.classAverageProjection || 0}%</div>
+              <p className="text-sm font-medium text-gray-600">Class Performance</p>
+              <div className="text-2xl font-bold text-gray-900">{analytics.averageGrade?.toFixed(1) || 0}%</div>
             </div>
             <Brain className="h-8 w-8 text-blue-500" />
           </div>
           <div className="mt-4">
             <div className="flex items-center text-sm">
               <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
-              <span className="text-green-600">+2.3% projected improvement</span>
+              <span className="text-green-600">Current class average</span>
             </div>
           </div>
         </motion.div>
@@ -245,14 +245,14 @@ export default function AdvancedAnalytics({
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Students Needing Intervention</p>
-              <div className="text-2xl font-bold text-gray-900">{analytics.predictions?.interventionNeeded ? 'Yes' : 'No'}</div>
+              <p className="text-sm font-medium text-gray-600">Students at Risk</p>
+              <div className="text-2xl font-bold text-gray-900">{analytics.studentsAtRisk || 0}</div>
             </div>
             <AlertTriangle className="h-8 w-8 text-red-500" />
           </div>
           <div className="mt-4">
             <div className="text-sm text-gray-600">
-              {Math.round(((analytics.predictions?.interventionNeeded ? analytics.overallPerformance?.totalStudents || 0 : 0) / (analytics.overallPerformance?.totalStudents || 1)) * 100)}% of class
+              {Math.round(((analytics.studentsAtRisk || 0) / (analytics.totalStudents || 1)) * 100)}% of class
             </div>
           </div>
         </motion.div>
@@ -265,14 +265,14 @@ export default function AdvancedAnalytics({
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Expected Completion Rate</p>
-              <div className="text-2xl font-bold text-gray-900">{analytics.predictions?.expectedCompletionRate || 0}%</div>
+              <p className="text-sm font-medium text-gray-600">Average Completion Rate</p>
+              <div className="text-2xl font-bold text-gray-900">{analytics.averageCompletionRate?.toFixed(1) || 0}%</div>
             </div>
             <Target className="h-8 w-8 text-green-500" />
           </div>
           <div className="mt-4">
             <div className="text-sm text-gray-600">
-              Based on current trends
+              Current class completion rate
             </div>
           </div>
         </motion.div>
@@ -363,16 +363,32 @@ export default function AdvancedAnalytics({
           </div>
         </div>
 
-        {/* AI Insights */}
+        {/* Performance Insights */}
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">AI Recommendations</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance Insights</h3>
           <div className="space-y-3">
-            {analytics.insights?.recommendations?.map((recommendation, index) => (
-              <div key={index} className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg">
-                <Brain className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-blue-800">{recommendation}</p>
+            <div className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg">
+              <Brain className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-blue-800">
+                Class average is {analytics?.averageGrade?.toFixed(1) || 0}% with {analytics?.studentsAtRisk || 0} students needing additional support.
+              </p>
+            </div>
+            {analytics && analytics.averageGrade < 70 && (
+              <div className="flex items-start space-x-3 p-3 bg-yellow-50 rounded-lg">
+                <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-yellow-800">
+                  Consider implementing additional support strategies to improve class performance.
+                </p>
               </div>
-            ))}
+            )}
+            {analytics && analytics.averageGrade >= 80 && (
+              <div className="flex items-start space-x-3 p-3 bg-green-50 rounded-lg">
+                <Target className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-green-800">
+                  Excellent class performance! Consider advanced enrichment opportunities.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -393,7 +409,7 @@ export default function AdvancedAnalytics({
                   Current Grade
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Predicted Final
+                  Completion
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Trend
@@ -423,7 +439,7 @@ export default function AdvancedAnalytics({
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">{student.predictions?.likelyFinalGrade || 0}% predicted</div>
+                    <div className="text-sm text-gray-500">{Math.round(student.completionRate)}% completion</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">

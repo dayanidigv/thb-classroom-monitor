@@ -1,14 +1,14 @@
 import React from 'react'
 import { useRouter } from 'next/router'
-import { useAuth } from '../../../lib/auth-context'
+import { useOptionalAuth } from '../../../lib/auth-context'
 import StudentProfile from '../../../components/classroom/StudentProfile'
 
 export default function StudentProfilePage() {
   const router = useRouter()
-  const { user, isLoading } = useAuth()
   const { studentId } = router.query
-
-  if (isLoading) {
+  
+  // Wait for router to be ready for dynamic routes
+  if (!router.isReady) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -16,7 +16,25 @@ export default function StudentProfilePage() {
     )
   }
 
-  if (!user) {
+  // Check if this is public access (numeric student ID)
+  const isNumericId = !!(studentId && typeof studentId === 'string' && /^\d+$/.test(studentId))
+  
+  // Use optional auth hook - returns null if no auth context available (public routes)
+  const auth = useOptionalAuth()
+  const user = auth?.user || null
+  const isLoading = auth?.isLoading || false
+
+  // Show loading only for private routes (non-numeric IDs)
+  if (isLoading && !isNumericId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  // Only require authentication for non-public routes (non-numeric student IDs)
+  if (!isNumericId && !user) {
     router.push('/login')
     return null
   }
@@ -32,5 +50,5 @@ export default function StudentProfilePage() {
     )
   }
 
-  return <StudentProfile studentId={studentId} />
+  return <StudentProfile studentId={studentId} isPublicAccess={isNumericId} />
 }

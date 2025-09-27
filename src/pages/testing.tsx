@@ -14,7 +14,7 @@ export default function TestingPage() {
     )
   }
 
-  if (!user || user.role !== 'teacher') {
+  if (!user || (user.role !== 'admin' && user.role !== 'super-admin')) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200 max-w-md w-full mx-4">

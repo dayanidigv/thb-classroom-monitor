@@ -6,12 +6,13 @@ interface User {
   id: string
   email: string
   name: string
-  role: 'student' | 'teacher'
+  role: 'super-admin' | 'admin' | 'student'
+  passkey: string
 }
 
 interface AuthContextType {
   user: User | null
-  login: (email: string, credential: any) => Promise<void>
+  login: (email: string, passkey: string) => Promise<void>
   logout: () => void
   isLoading: boolean
 }
@@ -74,12 +75,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user])
 
-  const login = async (email: string, authKey: string) => {
+  const login = async (email: string, passkey: string) => {
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, authKey })
+        body: JSON.stringify({ email, passkey })
       })
 
       if (!response.ok) {
@@ -114,4 +115,10 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider')
   }
   return context
+}
+
+// Hook that safely checks if auth context is available
+export function useOptionalAuth() {
+  const context = useContext(AuthContext)
+  return context || null
 }
