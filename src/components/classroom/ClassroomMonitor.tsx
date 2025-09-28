@@ -1595,7 +1595,7 @@ export default function ClassroomMonitor() {
                             </div>
                             <div className="bg-blue-50 p-2 rounded-lg">
                               <div className="text-blue-600">Session Points</div>
-                              <div className="text-lg font-bold text-blue-900">{student.points}</div>
+                              <div className="text-lg font-bold text-blue-900">{student.points}/{performanceMetrics.classMetrics?.totalPointsPossible || 0}</div>
                             </div>
                             <div className="bg-green-50 p-2 rounded-lg">
                               <div className="text-green-600">Completion</div>
