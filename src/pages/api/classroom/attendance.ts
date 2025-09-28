@@ -164,27 +164,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const hasAnyValidPoints = pointsArray.some(points => points > 0)
       if (!hasAnyValidPoints) {
         invalidSessions.add(sessionName)
-        console.log(`Excluding session "${sessionName}" - all students have 0 points`)
+        console.log(`Excluding session "${sessionName}" from POINTS calculation - all students have 0 points`)
       }
     })
+    
+    console.log(`Total sessions found: ${allSessionNames.size}, Sessions excluded from points: ${invalidSessions.size}`)
+    console.log(`Attendance will include ALL ${allSessionNames.size} sessions, Points will only use ${allSessionNames.size - invalidSessions.size} sessions`)
 
     // Process attendance data for each student
     const studentAttendance = attendanceStudents.map((student: any) => {
       const sessions = student.sessions || []
       
-      // Filter out empty/null sessions AND sessions where all students have 0 points
-      const validSessions = sessions.filter((session: any) => 
+      // For ATTENDANCE: Include ALL valid sessions (don't exclude sessions with all-zero points)
+      const allValidSessions = sessions.filter((session: any) => 
+        session.sessionName && 
+        !session.sessionName.startsWith('Column') &&
+        session.status !== null
+      )
+      
+      // For POINTS: Exclude sessions where all students have 0 points
+      const validSessionsForPoints = sessions.filter((session: any) => 
         session.sessionName && 
         !session.sessionName.startsWith('Column') &&
         session.status !== null &&
-        !invalidSessions.has(session.sessionName) // NEW: Exclude sessions with all-zero points
+        !invalidSessions.has(session.sessionName) // Exclude sessions with all-zero points for points calculation only
       )
       
-      // Calculate metrics
-      const totalSessions = validSessions.length
-      const presentSessions = validSessions.filter((s: any) => s.status === 'Present').length
-      const lateSessions = validSessions.filter((s: any) => s.status === 'Late').length
-      const absentSessions = validSessions.filter((s: any) => s.status === 'Absent ' || s.status === 'Absent').length
+      // Calculate ATTENDANCE metrics using ALL sessions
+      const totalSessions = allValidSessions.length
+      const presentSessions = allValidSessions.filter((s: any) => s.status === 'Present').length
+      const lateSessions = allValidSessions.filter((s: any) => s.status === 'Late').length
+      const absentSessions = allValidSessions.filter((s: any) => s.status === 'Absent ' || s.status === 'Absent').length
       
       const attendanceRate = student.attendancePercentage || 0
       const punctualityRate = totalSessions > 0 
@@ -193,11 +203,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       // Calculate engagement score based on points and attendance
       // Only count points from valid sessions (excluding sessions where all students got 0)
-      const totalPointsFromValidSessions = validSessions.reduce((sum: number, session: any) => {
+      const totalPointsFromValidSessions = validSessionsForPoints.reduce((sum: number, session: any) => {
         return sum + (session.points || 0)
       }, 0)
       
-      const maxPossiblePoints = validSessions.reduce((sum: number, session: any) => {
+      const maxPossiblePoints = validSessionsForPoints.reduce((sum: number, session: any) => {
         // Only count sessions that have valid point data (not excluded)
         return sum + (session.points >= 0 ? 10 : 0) // Assume 10 as max per session
       }, 0)
@@ -213,8 +223,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (attendanceRate < 60 || engagementScore < 50) riskLevel = 'high'
       else if (attendanceRate < 80 || engagementScore < 70) riskLevel = 'medium'
       
-      // Recent activity (last 7 sessions)
-      const recentSessions = validSessions.slice(-7)
+      // Recent activity (last 7 sessions) - use ALL sessions for attendance tracking
+      const recentSessions = allValidSessions.slice(-7)
       const recentActivity = recentSessions.filter((s: any) => s.status === 'Present').length
       
       // Find matching classroom student by name
@@ -244,10 +254,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         riskLevel: riskLevel,
         photoUrl: classroomStudent?.photoUrl || null,
         email: classroomStudent?.email || null,
-        sessions: validSessions.map((session: any) => ({
+        sessions: allValidSessions.map((session: any) => ({
           name: session.sessionName,
           status: session.status,
-          points: session.points || 0
+          points: session.points || 0,
+          includedInPoints: !invalidSessions.has(session.sessionName) // Flag to show if this session is counted for points
         }))
       }
     })
