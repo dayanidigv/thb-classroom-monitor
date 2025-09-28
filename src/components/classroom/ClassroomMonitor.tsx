@@ -1314,9 +1314,6 @@ export default function ClassroomMonitor() {
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attendance Rate</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">On Time</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Late</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Missed</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative">
                           <div className="flex items-center space-x-1">
                             <span>Engagement</span>
@@ -1355,6 +1352,10 @@ export default function ClassroomMonitor() {
                             </div>
                           </div>
                         </th>
+
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">On Time</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Late</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Missed</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -1377,8 +1378,17 @@ export default function ClassroomMonitor() {
                                 </div>
                               )}
                               <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900">{student.name}</div>
-                                {/* <div className="text-sm text-gray-500">{student.email}</div> */}
+                                <div className="flex items-center space-x-2">
+                                  <div className="text-sm font-medium text-gray-900">{student.name}</div>
+                                  {!student.inClassroom && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                      Not in Classroom
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  {student.email || (student.inClassroom ? 'No email available' : 'Not joined Google Classroom')}
+                                </div>
                               </div>
                             </div>
                           </td>
@@ -1393,9 +1403,6 @@ export default function ClassroomMonitor() {
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.submittedOnTime}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.lateSubmissions}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.missedAssignments}</td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${student.engagementScore >= 80 ? 'bg-green-100 text-green-800' : student.engagementScore >= 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
                               {student.engagementScore}%
@@ -1406,6 +1413,10 @@ export default function ClassroomMonitor() {
                               {student.attendanceRate >= 90 ? 'Excellent' : student.attendanceRate >= 70 ? 'Good' : 'At Risk'}
                             </span>
                           </td>
+
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.submittedOnTime}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.lateSubmissions}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.missedAssignments}</td>
                         </tr>
                       )) || (
                         <tr>
@@ -1633,10 +1644,6 @@ export default function ClassroomMonitor() {
                           <div>Session Points</div>
                           <div className="text-xs font-normal text-gray-400 normal-case">From Attendance & Engagement</div>
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <div>Assignment Rate</div>
-                          <div className="text-xs font-normal text-gray-400 normal-case">Google Classroom</div>
-                        </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative">
                           <div className="flex items-center space-x-1">
                             <span>Trend</span>
@@ -1672,6 +1679,11 @@ export default function ClassroomMonitor() {
                               </div>
                             </div>
                           </div>
+                        </th>
+
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <div>Assignment Rate</div>
+                          <div className="text-xs font-normal text-gray-400 normal-case">Google Classroom</div>
                         </th>
                       </tr>
                     </thead>
@@ -1730,21 +1742,6 @@ export default function ClassroomMonitor() {
                             </div>
                           </td>
                           <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm font-bold text-gray-900">{student.completion}%</span>
-                              <div className="w-12 bg-gray-200 rounded-full h-1.5">
-                                <div 
-                                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                                    student.completion >= 90 ? 'bg-green-500' : 
-                                    student.completion >= 70 ? 'bg-yellow-500' : 
-                                    'bg-red-500'
-                                  }`}
-                                  style={{ width: `${Math.min(student.completion, 100)}%` }}
-                                ></div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
                               student.trend === 'improving' ? 'bg-green-100 text-green-800' : 
                               student.trend === 'declining' ? 'bg-red-100 text-red-800' : 
@@ -1765,6 +1762,22 @@ export default function ClassroomMonitor() {
                                student.riskLevel === 'medium' ? 'Medium Risk' : 
                                'High Risk'}
                             </span>
+                          </td>
+
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm font-bold text-gray-900">{student.completion}%</span>
+                              <div className="w-12 bg-gray-200 rounded-full h-1.5">
+                                <div 
+                                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                                    student.completion >= 90 ? 'bg-green-500' : 
+                                    student.completion >= 70 ? 'bg-yellow-500' : 
+                                    'bg-red-500'
+                                  }`}
+                                  style={{ width: `${Math.min(student.completion, 100)}%` }}
+                                ></div>
+                              </div>
+                            </div>
                           </td>
                         </tr>
                       )) || (

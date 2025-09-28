@@ -40,14 +40,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const attendanceStudents = attendanceApiData.data
+    
+    // Debug: Check for duplicate names in attendance data
+    const nameCount = new Map()
+    attendanceStudents.forEach((student: any) => {
+      const name = student.name?.toLowerCase().trim()
+      if (name && (name.includes('anish') || name.includes('anush'))) {
+        nameCount.set(name, (nameCount.get(name) || 0) + 1)
+        console.log(`🔍 Found in attendance data: "${student.name}" (s_no: ${student.s_no})`)
+      }
+    })
+    
+    // Log any duplicates
+    nameCount.forEach((count, name) => {
+      if (count > 1) {
+        console.log(`⚠️ DUPLICATE in attendance data: "${name}" appears ${count} times`)
+      }
+    })
 
     // Create a comprehensive lookup map using multiple name matching strategies
     const createNameMatcher = (name: string) => {
       const normalized = name.toLowerCase().trim()
-      const words = normalized.split(/\s+/)
+      // Handle dots in names like "d.k.pavithran" - split on spaces and dots
+      const words = normalized.split(/[\s.]+/).filter(w => w.length > 0)
       return {
         exact: normalized,
-        reversed: words.reverse().join(' '), // "John Doe" -> "doe john"
+        reversed: [...words].reverse().join(' '), // "John Doe" -> "doe john" (don't mutate original)
         firstLast: words.length >= 2 ? `${words[0]} ${words[words.length - 1]}` : normalized,
         lastFirst: words.length >= 2 ? `${words[words.length - 1]} ${words[0]}` : normalized,
         words: words,
@@ -75,6 +93,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         classroomByName.set(matcher.reversed, studentData)
         classroomByName.set(matcher.firstLast, studentData)
         classroomByName.set(matcher.lastFirst, studentData)
+        
+
         
         if (profile.emailAddress) {
           classroomByEmail.set(profile.emailAddress.toLowerCase(), studentData)
@@ -109,17 +129,59 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       for (const [classroomName, studentData] of classroomEntries) {
         const classroomMatcher = createNameMatcher(classroomName)
         
-        // Check if any words match (improved matching)
+        // Check if any words match (stricter matching to prevent Anisha/Anushree confusion)
         const hasCommonWords = matcher.words.some(word => 
-          classroomMatcher.words.some(cWord => 
-            word.includes(cWord) || cWord.includes(word) || word === cWord ||
-            // Handle cases like "d.k.pavithran" vs "pavithran"
-            word.split('.').some(part => part === cWord || cWord.includes(part)) ||
-            cWord.split('.').some(part => part === word || word.includes(part))
-          )
+          classroomMatcher.words.some(cWord => {
+            // Exact match first
+            if (word === cWord) return true;
+            
+            // Handle cases like "d.k.pavithran" vs "pavithran" - exact part matches only
+            if (word.includes('.') || cWord.includes('.')) {
+              const wordParts = word.split('.');
+              const cWordParts = cWord.split('.');
+              return wordParts.some(part => part === cWord) || cWordParts.some(part => part === word);
+            }
+            
+            // Strict includes matching - prevent short substring matches like Anisha/Anushree
+            const minLength = Math.min(word.length, cWord.length);
+            const maxLength = Math.max(word.length, cWord.length);
+            
+            // Only allow includes if:
+            // 1. Minimum length is at least 4 characters
+            // 2. Length difference is not more than 50%
+            // 3. The overlap is significant (80%+ of shorter word)
+            if (minLength >= 4 && maxLength <= minLength * 1.5) {
+              if (word.includes(cWord) && cWord.length >= word.length * 0.8) return true;
+              if (cWord.includes(word) && word.length >= cWord.length * 0.8) return true;
+            }
+            
+            return false;
+          })
         )
         
-        if (hasCommonWords && matcher.words.length >= 2) {
+        if (hasCommonWords) {
+          return studentData
+        }
+      }
+      
+      // Special case: Try direct substring matching for cases like "pavithran" in "d.k.pavithran"
+      const classroomStudents = Array.from(classroomByName.values())
+      for (const studentData of classroomStudents) {
+        const normalizedClassroom = studentData.fullName.toLowerCase()
+        const normalizedAttendance = matcher.exact
+        
+        // If attendance name is fully contained in classroom name and is substantial length
+        if (normalizedAttendance.length >= 4 && normalizedClassroom.includes(normalizedAttendance)) {
+          return studentData
+        }
+        
+        // Handle case differences like "vimalanandh.k" vs "Vimalanandh"
+        const attendanceClean = normalizedAttendance.replace(/[.\s]/g, '')
+        const classroomClean = normalizedClassroom.replace(/[.\s]/g, '')
+        if (attendanceClean.length >= 4 && (
+          classroomClean.includes(attendanceClean) || 
+          attendanceClean.includes(classroomClean)
+        )) {
           return studentData
         }
       }
@@ -134,12 +196,80 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return found || null
     }
 
+    // Deduplicate attendance students - merge records with the same normalized name OR same matched classroom student
+    const deduplicatedStudents = new Map()
+    const processedClassroomIds = new Set()
+    
+    attendanceStudents.forEach((student: any) => {
+      const normalizedName = student.name?.toLowerCase().trim()
+      if (!normalizedName) return
+      
+      // Find the classroom student this attendance record would match to
+      const potentialClassroomStudent = findClassroomStudent(student.name || '')
+      let classroomId = potentialClassroomStudent?.userId
+      
+      let keyToUse = normalizedName
+      let shouldMerge = false
+      let existingKey = null
+      
+      // Check for duplicate by name
+      if (deduplicatedStudents.has(normalizedName)) {
+        shouldMerge = true
+        existingKey = normalizedName
+      }
+      // Check for duplicate by classroom ID ONLY if both students actually match the same classroom student strongly
+      else if (classroomId && processedClassroomIds.has(classroomId)) {
+        // Find which key has this classroom ID
+        const entries = Array.from(deduplicatedStudents.entries())
+        for (const [key, existingStudent] of entries) {
+          const existingClassroomStudent = findClassroomStudent(existingStudent.name || '')
+          
+          // Only merge if BOTH students have strong matches to the SAME classroom student
+          if (existingClassroomStudent?.userId === classroomId) {
+            // Check if both names are reasonably similar to avoid false merging
+            const namesSimilar = student.name && existingStudent.name &&
+              (student.name.toLowerCase().includes(existingStudent.name.toLowerCase().substring(0, 4)) ||
+               existingStudent.name.toLowerCase().includes(student.name.toLowerCase().substring(0, 4)))
+            
+            if (namesSimilar) {
+              shouldMerge = true
+              existingKey = key
+              keyToUse = key // Use the existing key
+              console.log(`🔄 Found duplicate classroom mapping: "${student.name}" → "${existingStudent.name}" (ID: ${classroomId})`)
+            } else {
+              console.log(`⚠️ Prevented false merge: "${student.name}" vs "${existingStudent.name}" (different names, same ID suggests one is mismatched)`)
+              // Don't use this classroom ID for this student - treat as sheet-only
+              classroomId = null
+            }
+            break
+          }
+        }
+      }
+      
+      if (shouldMerge && existingKey) {
+        // Merge sessions from duplicate records
+        const existing = deduplicatedStudents.get(existingKey)
+        existing.sessions = [...(existing.sessions || []), ...(student.sessions || [])]
+        existing.attendancePercentage = Math.max(existing.attendancePercentage || 0, student.attendancePercentage || 0)
+        console.log(`🔄 Merged duplicate: "${student.name}" into "${existing.name}"`)
+      } else {
+        deduplicatedStudents.set(keyToUse, { ...student })
+        if (classroomId) {
+          processedClassroomIds.add(classroomId)
+        }
+      }
+    })
+    
+    const uniqueAttendanceStudents = Array.from(deduplicatedStudents.values())
+    
+    console.log(`📊 Attendance deduplication: ${attendanceStudents.length} → ${uniqueAttendanceStudents.length} unique students`)
+
     // First pass: Identify sessions where all students have 0 or null points
     const allSessionNames = new Set<string>()
     const sessionPointsData = new Map<string, number[]>()
     
     // Collect all session names and their points data
-    attendanceStudents.forEach((student: any) => {
+    uniqueAttendanceStudents.forEach((student: any) => {
       const sessions = student.sessions || []
       sessions.forEach((session: any) => {
         if (session.sessionName && 
@@ -172,7 +302,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log(`Attendance will include ALL ${allSessionNames.size} sessions, Points will only use ${allSessionNames.size - invalidSessions.size} sessions`)
 
     // Process attendance data for each student
-    const studentAttendance = attendanceStudents.map((student: any) => {
+    const studentAttendance = uniqueAttendanceStudents.map((student: any) => {
       const sessions = student.sessions || []
       
       // For ATTENDANCE: Include ALL valid sessions (don't exclude sessions with all-zero points)
@@ -231,8 +361,80 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const attendanceName = student.name || ''
       const classroomStudent = findClassroomStudent(attendanceName)
       
-      // Use classroom student ID if found, otherwise use attendance s_no
-      const studentId = classroomStudent?.userId || student.s_no?.toString() || ''
+
+      
+      // Check if this is a strong match (not just partial)
+      let isValidClassroomMatch = false
+      if (classroomStudent) {
+        const normalizedAttendanceName = attendanceName.toLowerCase().trim()
+        const normalizedClassroomName = classroomStudent.fullName?.toLowerCase().trim()
+        
+        // Only consider it a valid match if:
+        // 1. Names are very similar (80%+ overlap) OR
+        // 2. First and last names match closely
+        if (normalizedClassroomName) {
+          const attendanceParts = normalizedAttendanceName.split(' ')
+          const classroomParts = normalizedClassroomName.split(' ')
+          
+          // Check for strong name similarity
+          const similarity = normalizedAttendanceName.length > 0 && normalizedClassroomName.length > 0
+            ? Math.max(
+                normalizedAttendanceName.includes(normalizedClassroomName) ? normalizedClassroomName.length / normalizedAttendanceName.length : 0,
+                normalizedClassroomName.includes(normalizedAttendanceName) ? normalizedAttendanceName.length / normalizedClassroomName.length : 0
+              )
+            : 0
+          
+          // Strong match criteria - enhanced to handle common naming patterns
+          isValidClassroomMatch = similarity >= 0.8 || (
+            attendanceParts.length >= 1 && classroomParts.length >= 1 && (
+              // First name matches exactly (handles multi-word names)
+              (attendanceParts.length >= 2 && classroomParts.length >= 2 && attendanceParts[0] === classroomParts[0]) ||
+              // Single word attendance name matches any classroom name part (e.g., "Pavithran" matches "d.k.pavithran")
+              (attendanceParts.length === 1 && classroomParts.some((part: string) => part === attendanceParts[0])) ||
+              // Case insensitive exact match for names with different casing (e.g., "ANUB. A" vs "Anub A")
+              (normalizedAttendanceName.replace(/[.\s]/g, '') === normalizedClassroomName.replace(/[.\s]/g, '')) ||
+              // Handle partial match where attendance name is contained in classroom name (e.g., "Nilesh" in "Nilesh Hebbare")
+              (attendanceParts[0] && classroomParts.some((part: string) => part.startsWith(attendanceParts[0]) && attendanceParts[0].length >= 4))
+            )
+          )
+        }
+      }
+      
+
+      
+      // Special handling for known problematic cases
+      let finalClassroomStudent = classroomStudent
+      let finalIsValidMatch = isValidClassroomMatch
+      
+      // Manual override for cases that should match but algorithm is failing
+      if (!finalIsValidMatch || !finalClassroomStudent) {
+        // Try manual lookup for known issues
+        const manualMatches: Record<string, string> = {
+          'pavithran': 'd.k.pavithran',
+          'vimalanandh.k': 'vimalanandh'
+        }
+        
+        // Debug logging for Suthinthararaj
+        if (attendanceName.toLowerCase().includes('suthinth')) {
+          console.log(`🔍 Debug Suthinth: "${attendanceName}" - No classroom match found (correct behavior)`)
+        }
+        
+        const manualMatch = manualMatches[attendanceName.toLowerCase()]
+        if (manualMatch) {
+          const directMatch = Array.from(classroomByName.values()).find(student => 
+            student.fullName.toLowerCase() === manualMatch.toLowerCase()
+          )
+          if (directMatch) {
+            finalClassroomStudent = directMatch
+            finalIsValidMatch = true
+          }
+        }
+      }
+
+      // Use classroom student ID ONLY if it's a valid match, otherwise use sheet-specific ID
+      const studentId = (finalIsValidMatch && finalClassroomStudent) 
+        ? finalClassroomStudent.userId 
+        : `sheet_${student.s_no || attendanceName.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`
 
       return {
         studentId: studentId,
@@ -254,8 +456,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         pointsEfficiency: pointsEfficiency,
         recentActivity: recentActivity,
         riskLevel: riskLevel,
-        photoUrl: classroomStudent?.photoUrl || null,
-        email: classroomStudent?.email || null,
+        photoUrl: (finalIsValidMatch && finalClassroomStudent) ? finalClassroomStudent.photoUrl : null,
+        email: (finalIsValidMatch && finalClassroomStudent) ? finalClassroomStudent.email : null,
+        // Add flags to indicate classroom status
+        inClassroom: finalIsValidMatch && !!finalClassroomStudent,
+        classroomStatus: (finalIsValidMatch && finalClassroomStudent) ? 'active' : 'not_joined',
         sessions: allValidSessions.map((session: any) => ({
           name: session.sessionName,
           status: session.status,
@@ -297,7 +502,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         attendanceRate: student.attendanceRate,
         totalPoints: student.totalPoints,
         photoUrl: student.photoUrl,
-        email: student.email
+        email: student.email,
+        inClassroom: student.inClassroom,
+        classroomStatus: student.classroomStatus
       }))
 
     // Students needing attention
@@ -311,6 +518,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         absentSessions: student.absentSessions,
         photoUrl: student.photoUrl,
         email: student.email,
+        inClassroom: student.inClassroom,
+        classroomStatus: student.classroomStatus,
         issues: [
           student.attendanceRate < 60 ? 'Low attendance' : null,
           student.lateSessions > 3 ? 'Frequent tardiness' : null,

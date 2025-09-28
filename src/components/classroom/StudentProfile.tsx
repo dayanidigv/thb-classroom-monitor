@@ -172,8 +172,18 @@ export default function StudentProfile({
               // Exact match
               if (recordName === searchName) return true;
               
-              // Contains match (both directions)
-              if (recordName?.includes(searchName) || searchName?.includes(recordName)) return true;
+              // Strict contains match - require significant overlap and minimum length
+              const minLength = Math.min(recordName?.length || 0, searchName?.length || 0);
+              const maxLength = Math.max(recordName?.length || 0, searchName?.length || 0);
+              
+              // Only allow contains matching if:
+              // 1. The shorter name is at least 4 characters
+              // 2. The overlap is at least 70% of the shorter name
+              // 3. Both names are reasonably similar in length (within 50% difference)
+              if (minLength >= 4 && maxLength <= minLength * 1.5) {
+                if (recordName?.includes(searchName) && searchName.length >= recordName.length * 0.7) return true;
+                if (searchName?.includes(recordName) && recordName.length >= searchName.length * 0.7) return true;
+              }
               
               // Split name matching (first name + last name)
               const searchParts = searchName.split(' ');
@@ -437,6 +447,13 @@ export default function StudentProfile({
                   <div className="inline-flex items-center px-3 py-1 bg-purple-100 text-purple-800 text-sm font-medium rounded-md">
                     <CalendarCheck className="h-4 w-4 mr-2" />
                     {attendanceData.attendanceRate}% Attendance
+                  </div>
+                )}
+                
+                {attendanceData && !attendanceData.inClassroom && (
+                  <div className="inline-flex items-center px-3 py-1 bg-orange-100 text-orange-800 text-sm font-medium rounded-md">
+                    <AlertTriangle className="h-4 w-4 mr-2" />
+                    Not in Classroom
                   </div>
                 )}
               </div>

@@ -108,15 +108,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       for (const [attendanceName, studentData] of attendanceEntries) {
         const attendanceMatcher = createNameMatcher(attendanceName)
         
-        // Check if any words match (improved matching)
+        // Check if any words match (stricter matching to prevent Anisha/Anushree confusion)
         const hasCommonWords = matcher.words.some(word => 
-          attendanceMatcher.words.some(aWord => 
-            word.includes(aWord) || aWord.includes(word) || word === aWord
-          )
+          attendanceMatcher.words.some(aWord => {
+            // Exact match first
+            if (word === aWord) return true;
+            
+            // Strict includes matching - prevent short substring matches
+            const minLength = Math.min(word.length, aWord.length);
+            const maxLength = Math.max(word.length, aWord.length);
+            
+            // Only allow includes if:
+            // 1. Minimum length is at least 4 characters
+            // 2. Length difference is not more than 50%
+            // 3. The overlap is significant (70%+ of shorter word)
+            if (minLength >= 4 && maxLength <= minLength * 1.5) {
+              if (word.includes(aWord) && aWord.length >= word.length * 0.7) return true;
+              if (aWord.includes(word) && word.length >= aWord.length * 0.7) return true;
+            }
+            
+            return false;
+          })
         ) || matcher.allParts.some(part => 
-          attendanceMatcher.allParts.some(aPart => 
-            part === aPart || (part.length > 2 && aPart.length > 2 && (part.includes(aPart) || aPart.includes(part)))
-          )
+          attendanceMatcher.allParts.some(aPart => {
+            // Exact match first
+            if (part === aPart) return true;
+            
+            // More restrictive partial matching
+            if (part.length > 3 && aPart.length > 3 && Math.abs(part.length - aPart.length) <= 2) {
+              if (part.includes(aPart) && aPart.length >= part.length * 0.8) return true;
+              if (aPart.includes(part) && part.length >= aPart.length * 0.8) return true;
+            }
+            
+            return false;
+          })
         )
         
         if (hasCommonWords && matcher.words.length >= 2) {
