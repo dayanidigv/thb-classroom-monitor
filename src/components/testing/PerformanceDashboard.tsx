@@ -198,7 +198,6 @@ const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
                     cache: cacheManager.getStats(),
                     timestamp: new Date().toISOString()
                   }
-                  console.log('Performance Data:', data)
                   
                   // Download as JSON
                   const blob = new Blob([JSON.stringify(data, null, 2)], { 

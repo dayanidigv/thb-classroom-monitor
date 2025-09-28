@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import jwt from 'jsonwebtoken'
+import { discordWebhook } from '../../../lib/discord-webhook'
 
 interface AuthUser {
   email: string
@@ -54,6 +55,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Generate JWT token
     const token = jwt.sign(userPayload, process.env.JWT_SECRET || 'fallback-secret', { expiresIn: '24h' })
+
+    // Log successful login to Discord
+    try {
+      const clientIP = req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.connection.remoteAddress || 'Unknown';
+      const userAgent = req.headers['user-agent'] || 'Unknown';
+      
+      await discordWebhook.logLogin({
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        loginMethod: 'manual',
+        ipAddress: Array.isArray(clientIP) ? clientIP[0] : clientIP,
+        userAgent: userAgent
+      });
+    } catch (webhookError) {
+      console.error('Failed to send Discord webhook:', webhookError);
+      // Don't fail the login if webhook fails
+    }
 
     res.status(200).json({ user: userPayload, token })
   } catch (error) {

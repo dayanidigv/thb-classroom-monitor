@@ -56,7 +56,6 @@ export class DataSyncManager {
     }
 
     try {
-      console.log('Performing classroom data sync...')
       await fetchClassroomData()
       this.lastSyncTime = new Date()
       setError(null)

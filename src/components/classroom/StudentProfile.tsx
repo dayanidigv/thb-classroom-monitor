@@ -136,16 +136,6 @@ export default function StudentProfile({
         setSubmissions(lookupData.analytics?.submissions || []);
         setAnalyticsData(lookupData.analytics || null);
 
-        console.log("Student lookup successful:", {
-          searchTerm: studentId,
-          foundByEmail: lookupData.metadata?.foundByEmail,
-          foundById: lookupData.metadata?.foundById,
-          studentName: foundStudent.profile?.name?.fullName,
-          studentId: realStudentId,
-          photoUrl: foundStudent.profile?.photoUrl || "No photo available",
-          note: "Photos are proxied to handle rate limiting from Google servers",
-        });
-
         // Reset photo error state for new student
         setPhotoError(false);
 
@@ -153,7 +143,7 @@ export default function StudentProfile({
         const [assignmentsResponse, courseResponse, attendanceResponse] = await Promise.all([
           fetch("/api/classroom/assignments"),
           fetch("/api/classroom/course"),
-          fetch("https://script.google.com/macros/s/AKfycby2hkg41EwBSU2PBDTNi4nMz8j37DregPiAyM48gVdY2G9mtlZiWV6T4ciUrRsa7HnF/exec?apiKey=THB-TD-B1-0925")
+          fetch("/api/classroom/attendance")
         ]);
         
         if (!assignmentsResponse.ok)
@@ -168,11 +158,14 @@ export default function StudentProfile({
         let attendanceInfo = null;
         if (attendanceResponse.ok) {
           const attendanceData = await attendanceResponse.json();
-          // Find attendance for current student by matching name
+          // Find attendance for current student by matching name or ID
           const studentName = foundStudent.profile?.name?.fullName;
-          if (studentName && attendanceData.data) {
+          if (studentName && attendanceData.studentMetrics) {
             // Try multiple matching strategies
-            attendanceInfo = attendanceData.data.find((record: any) => {
+            attendanceInfo = attendanceData.studentMetrics.find((record: any) => {
+              // First try to match by student ID
+              if (record.studentId === realStudentId) return true;
+              
               const recordName = record.name?.toLowerCase().trim();
               const searchName = studentName.toLowerCase().trim();
               
@@ -202,18 +195,36 @@ export default function StudentProfile({
               
               return false;
             });
-            
-            console.log('Attendance matching:', {
-              studentName,
-              attendanceRecords: attendanceData.data.map((r: any) => r.name),
-              foundMatch: attendanceInfo?.name || 'No match found'
-            });
           }
         }
 
         setAssignments(assignmentsData);
         setCourseData(courseData);
         setAttendanceData(attendanceInfo);
+
+        // Log only public access to Discord via server-side API
+        if (isPublicAccess) {
+          try {
+            await fetch('/api/discord/log', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                type: 'visitor',
+                data: {
+                  type: 'public_access',
+                  studentName: foundStudent.profile?.name?.fullName,
+                  studentId: realStudentId,
+                  accessedBy: 'Anonymous User'
+                }
+              })
+            });
+          } catch (webhookError) {
+            console.error('Failed to send Discord webhook:', webhookError);
+            // Don't fail the page load if webhook fails
+          }
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "An error occurred");
       } finally {
@@ -382,9 +393,6 @@ export default function StudentProfile({
                   }'s profile photo`}
                   className="h-20 w-20 sm:h-24 sm:w-24 rounded-lg object-cover border border-gray-200"
                   onError={(e) => {
-                    console.log(
-                      "Photo failed to load (rate limited or unavailable), using initials fallback"
-                    );
                     setPhotoError(true);
                   }}
                 />
@@ -428,7 +436,7 @@ export default function StudentProfile({
                 {attendanceData && (
                   <div className="inline-flex items-center px-3 py-1 bg-purple-100 text-purple-800 text-sm font-medium rounded-md">
                     <CalendarCheck className="h-4 w-4 mr-2" />
-                    {attendanceData.attendancePercentage}% Attendance
+                    {attendanceData.attendanceRate}% Attendance
                   </div>
                 )}
               </div>
@@ -530,7 +538,7 @@ export default function StudentProfile({
                   Attendance
                 </p>
                 <p className="text-lg sm:text-2xl font-bold text-gray-900">
-                  {attendanceData?.attendancePercentage || 0}%
+                  {attendanceData?.attendanceRate || 0}%
                 </p>
               </div>
             </div>
@@ -549,7 +557,7 @@ export default function StudentProfile({
                   Total Points
                 </p>
                 <p className="text-lg sm:text-2xl font-bold text-gray-900">
-                  {attendanceData?.totalPoints || 0}
+                  {attendanceData?.totalPoints || 0}/{attendanceData?.maxPossiblePoints || (attendanceData?.validSessions ? attendanceData.validSessions * 10 : 100)}
                 </p>
               </div>
             </div>
@@ -619,27 +627,27 @@ export default function StudentProfile({
                         Class Attendance
                       </span>
                       <span className={`font-semibold ${
-                        attendanceData.attendancePercentage >= 90
+                        attendanceData.attendanceRate >= 90
                           ? "bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent"
-                          : attendanceData.attendancePercentage >= 80
+                          : attendanceData.attendanceRate >= 80
                           ? "bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent"
-                          : attendanceData.attendancePercentage >= 70
+                          : attendanceData.attendanceRate >= 70
                           ? "bg-gradient-to-r from-yellow-600 to-orange-600 bg-clip-text text-transparent"
                           : "bg-gradient-to-r from-red-600 to-rose-600 bg-clip-text text-transparent"
-                      }`}>{attendanceData.attendancePercentage}%</span>
+                      }`}>{attendanceData.attendanceRate}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-3">
                       <div
                         className={`h-3 rounded-full transition-all duration-500 ease-out ${
-                          attendanceData.attendancePercentage >= 90
+                          attendanceData.attendanceRate >= 90
                             ? "bg-green-500"
-                            : attendanceData.attendancePercentage >= 80
+                            : attendanceData.attendanceRate >= 80
                             ? "bg-blue-500"
-                            : attendanceData.attendancePercentage >= 70
+                            : attendanceData.attendanceRate >= 70
                             ? "bg-yellow-500"
                             : "bg-red-500"
                         }`}
-                        style={{ width: `${attendanceData.attendancePercentage}%` }}
+                        style={{ width: `${attendanceData.attendanceRate}%` }}
                       ></div>
                     </div>
                   </div>
@@ -716,7 +724,7 @@ export default function StudentProfile({
                       </span>
                     </div>
                     <span className="text-purple-900 font-bold">
-                      {attendanceData.attendancePercentage}%
+                      {attendanceData.attendanceRate}%
                     </span>
                   </div>
                 )}
@@ -750,10 +758,10 @@ export default function StudentProfile({
                 <Share2 className="h-6 w-6 text-blue-600 mr-3" />
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">
-                      Share Your Performance
+                      Share Performance
                   </h3>
                   <p className="text-sm text-gray-600 mt-1">
-                    Share your academic progress with others using this public link
+                    Share academic progress with others using this public link
                   </p>
                 </div>
               </div>

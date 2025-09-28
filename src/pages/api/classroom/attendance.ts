@@ -249,6 +249,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         lateSubmissions: lateSessions,
         missedAssignments: absentSessions,
         totalPoints: totalPointsFromValidSessions,
+        maxPossiblePoints: maxPossiblePoints,
+        validSessions: validSessionsForPoints.length,
         pointsEfficiency: pointsEfficiency,
         recentActivity: recentActivity,
         riskLevel: riskLevel,

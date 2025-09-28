@@ -133,7 +133,7 @@ function StudentList({
           }
           
           return (
-            <Link key={student.userId} href={`/dashboard/student/${student.userId}`}>
+            <Link key={student.userId} href={`/dashboard/student/${student.profile?.emailAddress || student.userId}`}>
               <div className="px-3 sm:px-6 py-3 sm:py-4 hover:bg-gray-50 transition-colors duration-200 cursor-pointer">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center min-w-0 flex-1 mr-4">
@@ -144,7 +144,6 @@ function StudentList({
                           alt={`${student.profile?.name?.fullName || 'Student'}'s profile photo`}
                           className="h-10 w-10 sm:h-12 sm:w-12 rounded-full object-cover border border-gray-200 shadow-md"
                           onError={() => {
-                            console.log(`Photo failed to load for ${student.profile?.name?.fullName}, using initials fallback`)
                             handlePhotoError(student.userId)
                           }}
                         />
@@ -511,7 +510,6 @@ export default function ClassroomMonitor() {
       if (response.ok) {
         const data = await response.json()
         setPerformanceMetrics(data)
-        console.log('Performance metrics loaded:', data)
       } else {
         console.error('Performance metrics API error:', response.status, await response.text())
       }
@@ -533,7 +531,6 @@ export default function ClassroomMonitor() {
       if (response.ok) {
         const data = await response.json()
         setRealTimeStats(data)
-        console.log('Real-time stats loaded:', data)
       } else {
         console.error('Real-time stats API error:', response.status, await response.text())
       }
@@ -870,8 +867,6 @@ export default function ClassroomMonitor() {
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
     )
-  } else {
-    console.log('Classroom data loaded');
   }
 
   if (error) {
