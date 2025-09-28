@@ -1729,10 +1729,7 @@ export default function ClassroomMonitor() {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-lg font-bold text-blue-600">{student.points}</div>
-                            <div className="text-xs text-gray-500">
-                              Session Points (Cumulative)
-                            </div>
+                            <div className="text-md font-bold text-blue-600">{student.points}/{performanceMetrics.classMetrics?.totalPointsPossible || 0}</div>
                             <div className="text-xs text-green-600 font-medium mt-1">
                               Attendance: {student.attendanceRate || 0}%
                             </div>
